@@ -73,6 +73,9 @@ def handle(conn, addr):
             except OSError as e:
                 log("%s xray connect failed: %s" % (addr, e))
                 return
+            # 中继阶段取消读超时：WS 隧道空闲几秒是常态，超时会把长连接掐断
+            conn.settimeout(None)
+            upstream.settimeout(None)
             upstream.sendall(buf)
             t1 = threading.Thread(target=relay, args=(conn, upstream), daemon=True)
             t2 = threading.Thread(target=relay, args=(upstream, conn), daemon=True)
