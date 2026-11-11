@@ -13,7 +13,7 @@ mkdir -p /var/lib/tailscale /run/tailscale /etc/xray
 # 1. xray：UUID 只从环境变量 XRAY_UUID 读；未设置则跳过 xray。
 if [ -n "${XRAY_UUID:-}" ]; then
   cat > /etc/xray/config.json <<EOF
-{"log":{"loglevel":"warning"},"inbounds":[{"port":10086,"listen":"127.0.0.1","protocol":"vless","settings":{"clients":[{"id":"$XRAY_UUID"}],"decryption":"none"},"streamSettings":{"network":"ws","wsSettings":{"path":"/vless"}}}],"outbounds":[{"protocol":"freedom","tag":"direct"}]}
+{"log":{"loglevel":"warning"},"inbounds":[{"port":10086,"listen":"127.0.0.1","protocol":"vless","settings":{"clients":[{"id":"$XRAY_UUID"}],"decryption":"none"},"streamSettings":{"network":"ws","wsSettings":{"path":"/vless"}}}],"outbounds":[{"protocol":"freedom","tag":"direct"},{"protocol":"socks","tag":"tailscale","settings":{"servers":[{"address":"127.0.0.1","port":1055}]}}],"routing":{"domainStrategy":"IPIfNonMatch","rules":[{"type":"field","ip":["100.64.0.0/10"],"outboundTag":"tailscale"}]}}
 EOF
   xray -config /etc/xray/config.json >/tmp/xray.log 2>&1 &
   echo "[start] xray VLESS+WS on 127.0.0.1:10086 (path /vless)"
