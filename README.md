@@ -41,6 +41,21 @@ Muse 经 tunnel proxy 连过去再出公网。
 （Hermes 面板）验证通过（经链路拿到 302，与直连一致）；
 等 cloady-exit 入网后把 TARGET_HOST 换成它再测一条公网抓取。
 
+## 手机 v2rayNG 经公网走出口（VLESS+WS）
+
+Cloady 的公网域名在边缘终结 TLS，只把明文 HTTP 转给容器 $PORT，
+所以代理走 WebSocket（HTTP Upgrade 能穿过 HTTP 边缘）：
+
+- 容器 $PORT 上跑 mux.py：普通 GET/HEAD 回 `ok`（平台健康检查），
+  含 `Upgrade: websocket` 的请求中继到本机 xray（127.0.0.1:10086）
+- xray：VLESS + WS，路径 `/vless`，出站直连（freedom），流量从
+  Cloady 节点（美国）出去
+- v2rayNG 出站：VLESS，地址=公网域名，端口 443，TLS 开，传输 ws，
+  路径 `/vless`；UUID 由容器环境变量 `XRAY_UUID` 提供（填 Cloady
+  控制台环境变量，不要进代码和仓库）
+- 未设 `XRAY_UUID` 时 xray 不启动，其他服务照常跑
+- tinyproxy + tailscale serve 的内网备份链路不受影响
+
 ## 花费
 
 免费层内：0.5 vCPU / 1 GB RAM / 5 GB SSD / 出站 10 GB 每月（整个工作区共用；官方文档口径，之前第三方评测说的 200 GB 不准）。
