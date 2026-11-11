@@ -15,7 +15,7 @@ if [ -n "${XRAY_UUID:-}" ]; then
   cat > /etc/xray/config.json <<EOF
 {"log":{"loglevel":"warning"},"inbounds":[{"port":10086,"listen":"127.0.0.1","protocol":"vless","settings":{"clients":[{"id":"$XRAY_UUID"}],"decryption":"none"},"streamSettings":{"network":"ws","wsSettings":{"path":"/vless"}}}],"outbounds":[{"protocol":"freedom","tag":"direct"},{"protocol":"socks","tag":"tailscale","settings":{"servers":[{"address":"127.0.0.1","port":1055}]}}],"routing":{"domainStrategy":"IPIfNonMatch","rules":[{"type":"field","ip":["100.64.0.0/10"],"outboundTag":"tailscale"}]}}
 EOF
-  xray -config /etc/xray/config.json >/tmp/xray.log 2>&1 &
+  xray -config /etc/xray/config.json 2>&1 &
   echo "[start] xray VLESS+WS on 127.0.0.1:10086 (path /vless)"
 else
   echo "[warn] XRAY_UUID not set, xray skipped (VLESS proxy unavailable)"
@@ -48,6 +48,8 @@ if [ -n "${TS_AUTHKEY:-}" ]; then
     # 把本机代理暴露到内网 8888 端口（TCP 直通，无 TLS）
     $TS serve --bg tcp:8888 tcp://127.0.0.1:8888 \
       && echo "[ok] tailscale serve tcp:8888 -> tinyproxy"
+    # probe: tailscaled SOCKS5 (127.0.0.1:1055) -> hermes-oci 18789
+    curl -s -o /dev/null -w "[probe] socks5->hermes 18789: %{http_code}\n" --max-time 10 --socks5-hostname 127.0.0.1:1055 http://100.79.57.66:18789/ || echo "[probe] socks5->hermes FAILED"
   else
     echo "[warn] tailscale up failed, check TS_AUTHKEY"
   fi
