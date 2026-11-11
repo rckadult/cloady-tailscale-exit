@@ -48,6 +48,9 @@ if [ -n "${TS_AUTHKEY:-}" ]; then
     # 把本机代理暴露到内网 8888 端口（TCP 直通，无 TLS）
     $TS serve --bg tcp:8888 tcp://127.0.0.1:8888 \
       && echo "[ok] tailscale serve tcp:8888 -> tinyproxy"
+    # 把 tailscaled 内置 SOCKS5 (127.0.0.1:1055) 暴露到内网 11055 端口，便于从内网直接测试它是否可用
+    $TS serve --bg tcp:11055 tcp://127.0.0.1:1055 \
+      && echo "[ok] tailscale serve tcp:11055 -> socks5 1055"
     # probe: tailscaled SOCKS5 (127.0.0.1:1055) -> hermes-oci 18789
     curl -s -o /dev/null -w "[probe] socks5->hermes 18789: %{http_code}\n" --max-time 10 --socks5-hostname 127.0.0.1:1055 http://100.79.57.66:18789/ || echo "[probe] socks5->hermes FAILED"
   else
