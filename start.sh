@@ -1,24 +1,35 @@
 #!/bin/bash
 # Cloady 备用出口：Tailscale（userspace 模式，PaaS 容器无 /dev/net/tun）
 # + tinyproxy（只绑 127.0.0.1，经 tailscale serve 暴露到内网）
-# 另起一个极简 HTTP 服务应付平台的 $PORT 健康检查。
+# + xray VLESS+WS（手机 v2rayNG 经公网域名连入；mux.py 在 $PORT 上分流，
+#   普通 GET/HEAD 回 ok 应付平台健康检查，WebSocket Upgrade 转给 xray）。
 set -u
 
 PORT="${PORT:-8080}"
 TS_SOCKET=/run/tailscale/tailscaled.sock
 
-# 1. 平台健康检查用的占位 HTTP 服务（只返回 ok，不暴露任何文件）
-mkdir -p /tmp/www /var/lib/tailscale /run/tailscale
-echo ok > /tmp/www/index.html
-cd /tmp/www
-python3 -m http.server "$PORT" --bind 0.0.0.0 >/tmp/http.log 2>&1 &
-echo "[start] status server on :$PORT"
+mkdir -p /var/lib/tailscale /run/tailscale /etc/xray
 
-# 2. tinyproxy：转发代理，只监听本机 8888
+# 1. xray：UUID 只从环境变量 XRAY_UUID 读；未设置则跳过 xray。
+if [ -n "${XRAY_UUID:-}" ]; then
+  cat > /etc/xray/config.json <<EOF
+{"log":{"loglevel":"warning"},"inbounds":[{"port":10086,"listen":"127.0.0.1","protocol":"vless","settings":{"clients":[{"id":"$XRAY_UUID"}],"decryption":"none"},"streamSettings":{"network":"ws","wsSettings":{"path":"/vless"}}}],"outbounds":[{"protocol":"freedom","tag":"direct"}]}
+EOF
+  xray -config /etc/xray/config.json >/tmp/xray.log 2>&1 &
+  echo "[start] xray VLESS+WS on 127.0.0.1:10086 (path /vless)"
+else
+  echo "[warn] XRAY_UUID not set, xray skipped (VLESS proxy unavailable)"
+fi
+
+# 2. mux.py：接管 $PORT——普通请求回 ok，WS 升级转 xray
+python3 /usr/local/bin/mux.py >/tmp/mux.log 2>&1 &
+echo "[start] mux on :$PORT (health ok / ws -> xray)"
+
+# 3. tinyproxy：转发代理，只监听本机 8888
 tinyproxy -c /etc/tinyproxy/tinyproxy.conf
 echo "[start] tinyproxy on 127.0.0.1:8888"
 
-# 3. tailscaled：userspace 模式，状态放内存（每次启动用 auth key 重新入网）
+# 4. tailscaled：userspace 模式，状态放内存（每次启动用 auth key 重新入网）
 tailscaled --tun=userspace-networking --state=mem: --socket="$TS_SOCKET" >/tmp/tailscaled.log 2>&1 &
 echo "[start] tailscaled (userspace mode)"
 
