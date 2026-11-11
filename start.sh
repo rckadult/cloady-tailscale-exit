@@ -30,7 +30,7 @@ tinyproxy -c /etc/tinyproxy/tinyproxy.conf
 echo "[start] tinyproxy on 127.0.0.1:8888"
 
 # 4. tailscaled：userspace 模式，状态放内存（每次启动用 auth key 重新入网）
-tailscaled --tun=userspace-networking --state=mem: --socket="$TS_SOCKET" >/tmp/tailscaled.log 2>&1 &
+tailscaled --tun=userspace-networking --state=mem: --socket="$TS_SOCKET" --socks5-server=127.0.0.1:1055 >/tmp/tailscaled.log 2>&1 &
 echo "[start] tailscaled (userspace mode)"
 
 # 等 socket 就绪
